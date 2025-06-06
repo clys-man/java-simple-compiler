@@ -5,19 +5,22 @@ import java.io.*;
 public class Compiler {
     public static void main(String[] args) {
         try {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+            InputStream inputStream = Compiler.class.getClassLoader().getResourceAsStream("input.txt");
+
+            if (inputStream == null) {
+                System.err.println("Arquivo input.txt não encontrado em src/main/resources.");
+                return;
+            }
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
             scanner scanner = new scanner(reader);
             parser parser = new parser(scanner);
 
-            System.out.println("Enter expressions (end with semicolon ';'):");
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.trim().isEmpty()) continue;
 
-            while (true) {
-                System.out.print("> ");
-                String input = reader.readLine();
-                if (input == null || input.equalsIgnoreCase("exit")) break;
-
-                // Feed input to the scanner
-                scanner.yyreset(new StringReader(input));
+                scanner.yyreset(new StringReader(line));
                 parser.parse();
             }
         } catch (Exception e) {
