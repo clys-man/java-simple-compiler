@@ -4,11 +4,25 @@ import java_cup.runtime.*;
 import java.io.*;
 
 parser code {:
-    scanner s;
-    parser(scanner s){ this.s=s; }
+    private scanner scanner;
+
+    public parser(scanner scanner) {
+        this.scanner = scanner;
+    }
+
+    public void syntax_error(Symbol cur_token) {
+        System.err.println("Erro de sintaxe na linha " + (cur_token.left+1) +
+                          ", coluna " + (cur_token.right+1) +
+                          ": token inesperado '" + cur_token.value + "'");
+    }
+
+    public void unrecovered_syntax_error(Symbol cur_token) {
+        System.err.println("Erro de sintaxe não recuperável. Compilação interrompida.");
+        System.exit(1);
+    }
 :}
 
-scan with {: return s.next_token(); :};
+scan with {: return scanner.next_token(); :};
 
 terminal            SEMI, PLUS, MINUS, TIMES, LPAREN, RPAREN, DIVISION;
 terminal Double     NUMBER;
