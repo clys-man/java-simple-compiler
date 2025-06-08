@@ -13,14 +13,38 @@ parser code {:
         this.scanner = scanner;
     }
 
+    public enum ErrorType {
+        SEMANTICAL("SemanticalError"),
+        TYPE("TypeError"),
+        SYNTAX("SyntaxError");
+
+        private final String description;
+
+        ErrorType(String description) {
+            this.description = description;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+    }
+
     public void syntax_error(Symbol cur_token) {
-        System.err.println("Erro de sintaxe na linha " + (cur_token.left+1) +
-                          ", coluna " + (cur_token.right+1) +
-                          ": token inesperado '" + cur_token.value + "'");
+        fatal_error(ErrorType.SYNTAX, "Token inesperado '" + cur_token.value + "'");
     }
 
     public void unrecovered_syntax_error(Symbol cur_token) {
-        System.err.println("Erro de sintaxe não recuperável. Compilação interrompida.");
+        fatal_error(ErrorType.SYNTAX, "Erro de sintaxe não recuperável. Compilação interrompida.");
+    }
+
+    private void fatal_error(ErrorType errorType, String message, int line, int column) {
+        System.err.println("[" + errorType.getDescription() + " - Linha " + line +
+                          ", Coluna " + column + "] " + message);
+        System.exit(1);
+    }
+
+    private void fatal_error(ErrorType errorType, String message) {
+        System.err.println("["+ errorType.getDescription() + "] " + message);
         System.exit(1);
     }
 
@@ -111,16 +135,12 @@ statement ::= declaration:d
     | while_statement:w
     | for_statement:f
     | return_statement:r
-    | block:b
-    | expression:e SEMICOLON
-    | BREAK SEMICOLON
-    | CONTINUE SEMICOLON
 ;
 
 declaration ::= type:t IDENTIFIER:id SEMICOLON
         {:
             if (symbolTable.containsKey(id)) {
-                System.err.println("Erro semântico: variável '" + id + "' já foi declarada.");
+                fatal_error(ErrorType.SEMANTICAL, "Variável '" + id + "' já foi declarada.");
             } else {
                 symbolTable.put(id, new SymbolInfo(id, t));
             }
@@ -128,13 +148,12 @@ declaration ::= type:t IDENTIFIER:id SEMICOLON
     | type:t IDENTIFIER:id ASSIGN expression:e SEMICOLON
         {:
             if (symbolTable.containsKey(id)) {
-                System.err.println("Erro semântico: variável '" + id + "' já foi declarada.");
+                fatal_error(ErrorType.SEMANTICAL, "Variável '" + id + "' já foi declarada.");
             } else {
                 ExprResult expr = (ExprResult) e;
 
-
                 if (!expr.type.equals(t)) {
-                    System.err.println("Erro de tipo: esperado '" + t + "', encontrado '" + expr.type + "'");
+                    fatal_error(ErrorType.TYPE, "Esperado tipo '" + t + "', mas encontrado '" + expr.type + "'.");
                 }
 
                 symbolTable.put(id, new SymbolInfo(id, t));
@@ -148,55 +167,72 @@ assignment ::= IDENTIFIER:id ASSIGN expression:e SEMICOLON
             ExprResult expr = (ExprResult) e;
 
             if (info == null) {
-                System.err.println("Erro semântico: variável '" + id + "' não declarada.");
+                fatal_error(ErrorType.SEMANTICAL, "Variável '" + id + "' não declarada.");
             } else if (!info.type.equals(expr.type)) {
-                System.err.println("Erro de tipo: esperado '" + info.type + "', encontrado '" + expr.type + "'");
+                fatal_error(ErrorType.TYPE, "Esperado '" + info.type + "', encontrado '" + expr.type + "'");
             }
         :}
     | IDENTIFIER:id PLUS_ASSIGN expression:e SEMICOLON
         {:
+            SymbolInfo info = symbolTable.get(id);
             ExprResult expr = (ExprResult) e;
-            if (expr.type != "number") {
-                System.err.println("Erro de tipo: esperado 'number', encontrado '" + expr.type + "'");
+
+            if (info == null) {
+                fatal_error(ErrorType.SEMANTICAL, "Variável '" + id + "' não declarada.");
+            } else if (!expr.type.equals("number")) {
+                fatal_error(ErrorType.TYPE, "Esperado 'number', encontrado '" + expr.type + "'");
             }
         :}
     | IDENTIFIER:id MINUS_ASSIGN expression:e SEMICOLON
         {:
+            SymbolInfo info = symbolTable.get(id);
             ExprResult expr = (ExprResult) e;
-            if (expr.type != "number") {
-                System.err.println("Erro de tipo: esperado 'number', encontrado '" + expr.type + "'");
+
+            if (info == null) {
+                fatal_error(ErrorType.SEMANTICAL, "Variável '" + id + "' não declarada.");
+            } else if (!expr.type.equals("number")) {
+                fatal_error(ErrorType.TYPE, "Esperado 'number', encontrado '" + expr.type + "'");
             }
         :}
     | IDENTIFIER:id TIMES_ASSIGN expression:e SEMICOLON
         {:
+            SymbolInfo info = symbolTable.get(id);
             ExprResult expr = (ExprResult) e;
-            if (expr.type != "number") {
-                System.err.println("Erro de tipo: esperado 'number', encontrado '" + expr.type + "'");
+
+            if (info == null) {
+                fatal_error(ErrorType.SEMANTICAL, "Variável '" + id + "' não declarada.");
+            } else if (!expr.type.equals("number")) {
+                fatal_error(ErrorType.TYPE, "Esperado 'number', encontrado '" + expr.type + "'");
             }
         :}
     | IDENTIFIER:id DIVIDE_ASSIGN expression:e SEMICOLON
         {:
+            SymbolInfo info = symbolTable.get(id);
             ExprResult expr = (ExprResult) e;
-            if (expr.type != "number") {
-                System.err.println("Erro de tipo: esperado 'number', encontrado '" + expr.type + "'");
+
+            if (info == null) {
+                fatal_error(ErrorType.SEMANTICAL, "Variável '" + id + "' não declarada.");
+            } else if (!expr.type.equals("number")) {
+                fatal_error(ErrorType.TYPE, "Esperado 'number', encontrado '" + expr.type + "'");
             }
         :}
 ;
 
-if_statement ::= IF LPAREN expression:e RPAREN LBRACE statement:s RBRACE
+if_statement ::= IF LPAREN expression:e RPAREN block
         {:
             ExprResult expr = (ExprResult) e;
-            if (expr.type != "bool") {
-                System.err.println("Erro de tipo: esperado 'bool', encontrado '" + expr.type + "'");
+            if (!expr.type.equals("bool")) {
+                fatal_error(ErrorType.TYPE, "Esperado 'bool', encontrado '" + expr.type + "'");
             }
         :}
+        | IF LPAREN expression:e RPAREN block if_statement
 ;
 
 while_statement ::= WHILE LPAREN expression:e RPAREN statement:s
         {:
             ExprResult expr = (ExprResult) e;
-            if (expr.type != "bool") {
-                System.err.println("Erro de tipo: esperado 'bool', encontrado '" + expr.type + "'");
+            if (!expr.type.equals("bool")) {
+                fatal_error(ErrorType.TYPE, "Esperado 'bool', encontrado '" + expr.type + "'");
             }
         :}
 ;
@@ -204,8 +240,8 @@ while_statement ::= WHILE LPAREN expression:e RPAREN statement:s
 for_statement ::= FOR LPAREN assignment:e expression:cond SEMICOLON assignment:update RPAREN statement:s
         {:
             ExprResult expr = (ExprResult) cond;
-            if (expr.type != "bool") {
-                System.err.println("Erro de tipo: esperado 'bool', encontrado '" + expr.type + "'");
+            if (!expr.type.equals("bool")) {
+                fatal_error(ErrorType.TYPE, "Esperado 'bool', encontrado '" + expr.type + "'");
             }
         :}
 ;
@@ -225,8 +261,8 @@ logical_or_expr ::= logical_or_expr:e1 OR logical_and_expr:e2
         {:
             ExprResult expr1 = (ExprResult) e1;
             ExprResult expr2 = (ExprResult) e2;
-            if (expr1.type != "bool" || expr2.type != "bool") {
-                System.err.println("Erro de tipo: esperado 'bool', encontrado '" + expr1.type + "'");
+            if (!expr1.type.equals("bool") || !expr2.type.equals("bool")) {
+                fatal_error(ErrorType.TYPE, "Operador '||' requer operandos do tipo 'bool'.");
             }
 
             RESULT = new ExprResult("bool", e1 + " || " + e2);
@@ -241,7 +277,7 @@ logical_and_expr ::= logical_and_expr:e1 AND equality_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals("bool") || !expr2.type.equals("bool")) {
-            System.err.println("Erro de tipo: operador '&&' requer operandos do tipo 'bool'.");
+            fatal_error(ErrorType.TYPE, "Operador '&&' requer operandos do tipo 'bool'.");
         }
         RESULT = new ExprResult("bool", e1 + " && " + e2);
     :}
@@ -254,7 +290,7 @@ equality_expr ::= equality_expr:e1 EQ relational_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals(expr2.type)) {
-            System.err.println("Erro de tipo: comparação '==' entre tipos incompatíveis ('" + expr1.type + "' e '" + expr2.type + "').");
+            fatal_error(ErrorType.TYPE, "Comparação '==' entre tipos incompatíveis ('" + expr1.type + "' e '" + expr2.type + "').");
         }
         RESULT = new ExprResult("bool", e1 + " == " + e2);
     :}
@@ -263,7 +299,7 @@ equality_expr ::= equality_expr:e1 EQ relational_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals(expr2.type)) {
-            System.err.println("Erro de tipo: comparação '!=' entre tipos incompatíveis ('" + expr1.type + "' e '" + expr2.type + "').");
+            fatal_error(ErrorType.TYPE, "Comparação '!=' entre tipos incompatíveis ('" + expr1.type + "' e '" + expr2.type + "').");
         }
         RESULT = new ExprResult("bool", e1 + " != " + e2);
     :}
@@ -276,7 +312,7 @@ relational_expr ::= relational_expr:e1 LT additive_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
-            System.err.println("Erro de tipo: operador '<' requer operandos numéricos.");
+            fatal_error(ErrorType.TYPE, "Operador '<' requer operandos numéricos.");
         }
         RESULT = new ExprResult("bool", e1 + " < " + e2);
     :}
@@ -285,7 +321,7 @@ relational_expr ::= relational_expr:e1 LT additive_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
-            System.err.println("Erro de tipo: operador '<=' requer operandos numéricos.");
+            fatal_error(ErrorType.TYPE, "Operador '<=' requer operandos numéricos.");
         }
         RESULT = new ExprResult("bool", e1 + " <= " + e2);
     :}
@@ -294,7 +330,7 @@ relational_expr ::= relational_expr:e1 LT additive_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
-            System.err.println("Erro de tipo: operador '>' requer operandos numéricos.");
+            fatal_error(ErrorType.TYPE, "Operador '>' requer operandos numéricos.");
         }
         RESULT = new ExprResult("bool", e1 + " > " + e2);
     :}
@@ -303,7 +339,7 @@ relational_expr ::= relational_expr:e1 LT additive_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
-            System.err.println("Erro de tipo: operador '>=' requer operandos numéricos.");
+            fatal_error(ErrorType.TYPE, "Operador '>=' requer operandos numéricos.");
         }
         RESULT = new ExprResult("bool", e1 + " >= " + e2);
     :}
@@ -316,7 +352,7 @@ additive_expr ::= additive_expr:e1 PLUS multiplicative_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
-            System.err.println("Erro de tipo: operador '+' requer operandos numéricos.");
+            fatal_error(ErrorType.TYPE, "Operador '+' requer operandos numéricos.");
         }
         RESULT = new ExprResult("number", e1 + " + " + e2);
     :}
@@ -325,7 +361,7 @@ additive_expr ::= additive_expr:e1 PLUS multiplicative_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
-            System.err.println("Erro de tipo: operador '-' requer operandos numéricos.");
+            fatal_error(ErrorType.TYPE, "Operador '-' requer operandos numéricos.");
         }
         RESULT = new ExprResult("number", e1 + " - " + e2);
     :}
@@ -338,7 +374,7 @@ multiplicative_expr ::= multiplicative_expr:e1 TIMES unary_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
-            System.err.println("Erro de tipo: operador '*' requer operandos numéricos.");
+            fatal_error(ErrorType.TYPE, "Operador '*' requer operandos numéricos.");
         }
         RESULT = new ExprResult("number", e1 + " * " + e2);
     :}
@@ -347,7 +383,7 @@ multiplicative_expr ::= multiplicative_expr:e1 TIMES unary_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
-            System.err.println("Erro de tipo: operador '/' requer operandos numéricos.");
+            fatal_error(ErrorType.TYPE, "Operador '/' requer operandos numéricos.");
         }
         RESULT = new ExprResult("number", e1 + " / " + e2);
     :}
@@ -356,7 +392,7 @@ multiplicative_expr ::= multiplicative_expr:e1 TIMES unary_expr:e2
         ExprResult expr1 = (ExprResult) e1;
         ExprResult expr2 = (ExprResult) e2;
         if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
-            System.err.println("Erro de tipo: operador '%' requer operandos numéricos.");
+            fatal_error(ErrorType.TYPE, "Operador '%' requer operandos numéricos.");
         }
         RESULT = new ExprResult("number", e1 + " % " + e2);
     :}
@@ -364,22 +400,36 @@ multiplicative_expr ::= multiplicative_expr:e1 TIMES unary_expr:e2
     {: RESULT = e; :}
 ;
 
-unary_expr ::= NOT unary_expr:e     {: RESULT = new ExprResult("bool", "!" + e); :}
-    | MINUS unary_expr:e            {: RESULT = new ExprResult("number", "-" + e); :}
+unary_expr ::= NOT unary_expr:e
+    {:
+        ExprResult expr = (ExprResult) e;
+        if (!expr.type.equals("bool")) {
+            fatal_error(ErrorType.TYPE, "Operador '!' requer operando do tipo 'bool'.");
+        }
+        RESULT = new ExprResult("bool", "!" + e);
+    :}
+    | MINUS unary_expr:e
+    {:
+        ExprResult expr = (ExprResult) e;
+        if (!expr.type.equals("number")) {
+            fatal_error(ErrorType.TYPE, "Operador '-' unário requer operando numérico.");
+        }
+        RESULT = new ExprResult("number", "-" + e);
+    :}
     | primary_expr:e                {: RESULT = e; :}
 ;
 
 primary_expr ::= STRING_LITERAL:s   {: RESULT = new ExprResult("string", "\"" + s + "\""); :}
     | INT_LITERAL:i                 {: RESULT = new ExprResult("number", i.toString()); :}
     | FLOAT_LITERAL:f               {: RESULT = new ExprResult("number", f.toString()); :}
-    | TRUE                          {: RESULT = new ExprResult("boolean", "true"); :}
-    | FALSE                         {: RESULT = new ExprResult("boolean", "false"); :}
+    | TRUE                          {: RESULT = new ExprResult("bool", "true"); :}
+    | FALSE                         {: RESULT = new ExprResult("bool", "false"); :}
     | IDENTIFIER:id
         {:
             SymbolInfo info = symbolTable.get(id);
 
             if (info == null) {
-                System.err.println("Erro semântico: variável '" + id + "' não declarada.");
+                fatal_error(ErrorType.SEMANTICAL, "Variável '" + id + "' não declarada.");
             }
 
             RESULT = new ExprResult((String) info.type, id);
