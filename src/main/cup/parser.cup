@@ -218,14 +218,27 @@ assignment ::= IDENTIFIER:id ASSIGN expression:e SEMICOLON
         :}
 ;
 
-if_statement ::= IF LPAREN expression:e RPAREN block
+if_statement ::= IF LPAREN expression:e RPAREN block:b
         {:
             ExprResult expr = (ExprResult) e;
             if (!expr.type.equals("bool")) {
                 fatal_error(ErrorType.TYPE, "Esperado 'bool', encontrado '" + expr.type + "'");
             }
         :}
-        | IF LPAREN expression:e RPAREN block if_statement
+    | IF LPAREN expression:e RPAREN block:b ELSE block:eb
+        {:
+            ExprResult expr = (ExprResult) e;
+            if (!expr.type.equals("bool")) {
+                fatal_error(ErrorType.TYPE, "Esperado 'bool', encontrado '" + expr.type + "'");
+            }
+        :}
+    | IF LPAREN expression:e RPAREN block:b ELSE if_statement:ei
+        {:
+            ExprResult expr = (ExprResult) e;
+            if (!expr.type.equals("bool")) {
+                fatal_error(ErrorType.TYPE, "Esperado 'bool', encontrado '" + expr.type + "'");
+            }
+        :}
 ;
 
 while_statement ::= WHILE LPAREN expression:e RPAREN statement:s
