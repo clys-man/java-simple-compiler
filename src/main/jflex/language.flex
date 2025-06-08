@@ -49,21 +49,21 @@ MULTI_LINE_COMMENT = "/*"(.|\n)*?"*/"
     {MULTI_LINE_COMMENT}    { /* ignorar */ }
 
     // Keywords
-    "if"                    { return symbol(sym.IF); }
-    "else"                  { return symbol(sym.ELSE); }
-    "while"                 { return symbol(sym.WHILE); }
-    "for"                   { return symbol(sym.FOR); }
-    "return"                { return symbol(sym.RETURN); }
-    "string"                { return symbol(sym.STRING_TYPE); }
-    "int"                   { return symbol(sym.INT_TYPE); }
-    "float"                 { return symbol(sym.FLOAT_TYPE); }
-    "bool"                  { return symbol(sym.BOOL_TYPE); }
-    "true"                  { return symbol(sym.TRUE); }
-    "false"                 { return symbol(sym.FALSE); }
-    "void"                  { return symbol(sym.VOID); }
-    "function"              { return symbol(sym.FUNCTION); }
-    "break"                 { return symbol(sym.BREAK); }
-    "continue"              { return symbol(sym.CONTINUE); }
+    "se"                    { return symbol(sym.IF); }
+    "senao"                  { return symbol(sym.ELSE); }
+    "enquanto"                 { return symbol(sym.WHILE); }
+    "para"                   { return symbol(sym.FOR); }
+    "retorne"                { return symbol(sym.RETURN); }
+    "cadeia"                { return symbol(sym.STRING_TYPE); }
+    "inteiro"                   { return symbol(sym.INT_TYPE); }
+    "real"                 { return symbol(sym.FLOAT_TYPE); }
+    "logico"                  { return symbol(sym.BOOL_TYPE); }
+    "VERDADEIRO"                  { return symbol(sym.TRUE); }
+    "FALSO"                 { return symbol(sym.FALSE); }
+    "vazio"                  { return symbol(sym.VOID); }
+    "funcao"              { return symbol(sym.FUNCTION); }
+    "parar"                 { return symbol(sym.BREAK); }
+    "continuar"              { return symbol(sym.CONTINUE); }
 
     // Operadores aritméticos
     "+"                     { return symbol(sym.PLUS); }
@@ -114,5 +114,6 @@ MULTI_LINE_COMMENT = "/*"(.|\n)*?"*/"
     .                       {
         System.err.println("Caractere ilegal na linha " + (yyline+1) +
                           ", coluna " + (yycolumn+1) + ": '" + yytext() + "'");
+        System.exit(1);
     }
 }
