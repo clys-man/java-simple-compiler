@@ -235,48 +235,133 @@ logical_or_expr ::= logical_or_expr:e1 OR logical_and_expr:e2
         {: RESULT = e; :}
 ;
 
+
 logical_and_expr ::= logical_and_expr:e1 AND equality_expr:e2
-        {: RESULT = new ExprResult("bool", e1 + " && " + e2); :}
-    | equality_expr:e
-        {: RESULT = e; :}
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals("bool") || !expr2.type.equals("bool")) {
+            System.err.println("Erro de tipo: operador '&&' requer operandos do tipo 'bool'.");
+        }
+        RESULT = new ExprResult("bool", e1 + " && " + e2);
+    :}
+  | equality_expr:e
+    {: RESULT = e; :}
 ;
 
 equality_expr ::= equality_expr:e1 EQ relational_expr:e2
-        {: RESULT = new ExprResult("bool", e1 + " == " + e2); :}
-    | equality_expr:e1 NE relational_expr:e2
-        {: RESULT = new ExprResult("bool", e1 + " != " + e2); :}
-    | relational_expr:e
-        {: RESULT = e; :}
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals(expr2.type)) {
+            System.err.println("Erro de tipo: comparação '==' entre tipos incompatíveis ('" + expr1.type + "' e '" + expr2.type + "').");
+        }
+        RESULT = new ExprResult("bool", e1 + " == " + e2);
+    :}
+  | equality_expr:e1 NE relational_expr:e2
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals(expr2.type)) {
+            System.err.println("Erro de tipo: comparação '!=' entre tipos incompatíveis ('" + expr1.type + "' e '" + expr2.type + "').");
+        }
+        RESULT = new ExprResult("bool", e1 + " != " + e2);
+    :}
+  | relational_expr:e
+    {: RESULT = e; :}
 ;
 
 relational_expr ::= relational_expr:e1 LT additive_expr:e2
-        {: RESULT = new ExprResult("bool", e1 + " < " + e2); :}
-    | relational_expr:e1 LE additive_expr:e2
-        {: RESULT = new ExprResult("bool", e1 + " <= " + e2); :}
-    | relational_expr:e1 GT additive_expr:e2
-        {: RESULT = new ExprResult("bool", e1 + " > " + e2); :}
-    | relational_expr:e1 GE additive_expr:e2
-        {: RESULT = new ExprResult("bool", e1 + " >= " + e2); :}
-    | additive_expr:e
-        {: RESULT = e; :}
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
+            System.err.println("Erro de tipo: operador '<' requer operandos numéricos.");
+        }
+        RESULT = new ExprResult("bool", e1 + " < " + e2);
+    :}
+  | relational_expr:e1 LE additive_expr:e2
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
+            System.err.println("Erro de tipo: operador '<=' requer operandos numéricos.");
+        }
+        RESULT = new ExprResult("bool", e1 + " <= " + e2);
+    :}
+  | relational_expr:e1 GT additive_expr:e2
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
+            System.err.println("Erro de tipo: operador '>' requer operandos numéricos.");
+        }
+        RESULT = new ExprResult("bool", e1 + " > " + e2);
+    :}
+  | relational_expr:e1 GE additive_expr:e2
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
+            System.err.println("Erro de tipo: operador '>=' requer operandos numéricos.");
+        }
+        RESULT = new ExprResult("bool", e1 + " >= " + e2);
+    :}
+  | additive_expr:e
+    {: RESULT = e; :}
 ;
 
 additive_expr ::= additive_expr:e1 PLUS multiplicative_expr:e2
-        {: RESULT = new ExprResult("number", e1 + " + " + e2); :}
-    | additive_expr:e1 MINUS multiplicative_expr:e2
-        {: RESULT = e1 + " - " + e2; :}
-    | multiplicative_expr:e
-        {: RESULT = e; :}
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
+            System.err.println("Erro de tipo: operador '+' requer operandos numéricos.");
+        }
+        RESULT = new ExprResult("number", e1 + " + " + e2);
+    :}
+  | additive_expr:e1 MINUS multiplicative_expr:e2
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
+            System.err.println("Erro de tipo: operador '-' requer operandos numéricos.");
+        }
+        RESULT = new ExprResult("number", e1 + " - " + e2);
+    :}
+  | multiplicative_expr:e
+    {: RESULT = e; :}
 ;
 
 multiplicative_expr ::= multiplicative_expr:e1 TIMES unary_expr:e2
-        {: RESULT = new ExprResult("number", e1 + " * " + e2); :}
-    | multiplicative_expr:e1 DIVIDE unary_expr:e2
-        {: RESULT = new ExprResult("number", e1 + " / " + e2); :}
-    | multiplicative_expr:e1 MOD unary_expr:e2
-        {: RESULT = new ExprResult("number", e1 + " % " + e2); :}
-    | unary_expr:e
-        {: RESULT = e; :}
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
+            System.err.println("Erro de tipo: operador '*' requer operandos numéricos.");
+        }
+        RESULT = new ExprResult("number", e1 + " * " + e2);
+    :}
+  | multiplicative_expr:e1 DIVIDE unary_expr:e2
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
+            System.err.println("Erro de tipo: operador '/' requer operandos numéricos.");
+        }
+        RESULT = new ExprResult("number", e1 + " / " + e2);
+    :}
+  | multiplicative_expr:e1 MOD unary_expr:e2
+    {:
+        ExprResult expr1 = (ExprResult) e1;
+        ExprResult expr2 = (ExprResult) e2;
+        if (!expr1.type.equals("number") || !expr2.type.equals("number")) {
+            System.err.println("Erro de tipo: operador '%' requer operandos numéricos.");
+        }
+        RESULT = new ExprResult("number", e1 + " % " + e2);
+    :}
+  | unary_expr:e
+    {: RESULT = e; :}
 ;
 
 unary_expr ::= NOT unary_expr:e     {: RESULT = new ExprResult("bool", "!" + e); :}
