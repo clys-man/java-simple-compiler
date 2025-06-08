@@ -5,6 +5,12 @@ import java_cup.runtime.*;
 
 %%
 
+%class scanner
+%unicode
+%cup
+%line
+%column
+
 %{
     private Symbol symbol(int type) {
         return new Symbol(type, yyline, yycolumn);
@@ -15,28 +21,98 @@ import java_cup.runtime.*;
     }
 %}
 
+WHITESPACE = [ \t\r\n]+
+DIGIT = [0-9]
+LETTER = [a-zA-Z_]
+ALPHANUM = [a-zA-Z0-9_]
 
-%class scanner
-%unicode
-%cup
-%line
-%column
+// Tipos
+INTEGER = {DIGIT}+
+FLOAT = {DIGIT}+\.{DIGIT}+
+STRING_LITERAL = \"([^\\\"\n]|\\.)*\"
 
-WHITESPACE = [ \t\n\r]+
-DIGIT = [0-9]+
+// Identificadores
+IDENTIFIER = {LETTER}{ALPHANUM}*
+
+// Comentários
+SINGLE_LINE_COMMENT = "//".*
+MULTI_LINE_COMMENT = "/*"(.|\n)*?"*/"
 
 %%
 
 <YYINITIAL> {
-    {WHITESPACE}  { /**/ }
-    ";"           { return symbol(sym.SEMI); }
-    "+"           { return symbol(sym.PLUS); }
-    "-"           { return symbol(sym.MINUS); }
-    "*"           { return symbol(sym.TIMES); }
-    "("           { return symbol(sym.LPAREN); }
-    ")"           { return symbol(sym.RPAREN); }
-    "/"           { return symbol(sym.DIVISION); }
-    {DIGIT}       { return symbol(sym.NUMBER, Double.parseDouble(yytext())); }
-    .             { System.err.println("Caractere ilegal na linha " + (yyline+1) +
-                             ", coluna " + (yycolumn+1) + ": '" + yytext() + "'"); }
+    // Whitespace e newlines
+    {WHITESPACE}            { /* ignorar */ }
+
+    // Comentários
+    {SINGLE_LINE_COMMENT}   { /* ignorar */ }
+    {MULTI_LINE_COMMENT}    { /* ignorar */ }
+
+    // Keywords
+    "if"                    { return symbol(sym.IF); }
+    "else"                  { return symbol(sym.ELSE); }
+    "while"                 { return symbol(sym.WHILE); }
+    "for"                   { return symbol(sym.FOR); }
+    "return"                { return symbol(sym.RETURN); }
+    "string"                { return symbol(sym.STRING_TYPE); }
+    "int"                   { return symbol(sym.INT_TYPE); }
+    "float"                 { return symbol(sym.FLOAT_TYPE); }
+    "bool"                  { return symbol(sym.BOOL_TYPE); }
+    "true"                  { return symbol(sym.TRUE); }
+    "false"                 { return symbol(sym.FALSE); }
+    "void"                  { return symbol(sym.VOID); }
+    "function"              { return symbol(sym.FUNCTION); }
+    "break"                 { return symbol(sym.BREAK); }
+    "continue"              { return symbol(sym.CONTINUE); }
+
+    // Operadores aritméticos
+    "+"                     { return symbol(sym.PLUS); }
+    "-"                     { return symbol(sym.MINUS); }
+    "*"                     { return symbol(sym.TIMES); }
+    "/"                     { return symbol(sym.DIVIDE); }
+    "%"                     { return symbol(sym.MOD); }
+
+    // Operadores relacionais
+    "=="                    { return symbol(sym.EQ); }
+    "!="                    { return symbol(sym.NE); }
+    "<"                     { return symbol(sym.LT); }
+    "<="                    { return symbol(sym.LE); }
+    ">"                     { return symbol(sym.GT); }
+    ">="                    { return symbol(sym.GE); }
+
+    // Operadores lógicos
+    "&&"                    { return symbol(sym.AND); }
+    "||"                    { return symbol(sym.OR); }
+    "!"                     { return symbol(sym.NOT); }
+
+    // Operadores de atribuição
+    "="                     { return symbol(sym.ASSIGN); }
+    "+="                    { return symbol(sym.PLUS_ASSIGN); }
+    "-="                    { return symbol(sym.MINUS_ASSIGN); }
+    "*="                    { return symbol(sym.TIMES_ASSIGN); }
+    "/="                    { return symbol(sym.DIVIDE_ASSIGN); }
+
+    // Delimitadores
+    ";"                     { return symbol(sym.SEMICOLON); }
+    ","                     { return symbol(sym.COMMA); }
+    "("                     { return symbol(sym.LPAREN); }
+    ")"                     { return symbol(sym.RPAREN); }
+    "{"                     { return symbol(sym.LBRACE); }
+    "}"                     { return symbol(sym.RBRACE); }
+    "["                     { return symbol(sym.LBRACKET); }
+    "]"                     { return symbol(sym.RBRACKET); }
+
+    // Tipos
+    {FLOAT}                 { return symbol(sym.FLOAT_LITERAL, Double.parseDouble(yytext())); }
+    {INTEGER}               { return symbol(sym.INT_LITERAL, Integer.parseInt(yytext())); }
+    {STRING_LITERAL} { return symbol(sym.STRING_LITERAL, yytext().substring(1, yytext().length() - 1)); }
+
+    // Identificadores
+    {IDENTIFIER}            { return symbol(sym.IDENTIFIER, yytext()); }
+
+    // Caracteres ilegais
+    .                       {
+        System.err.println("Caractere ilegal na linha " + (yyline+1) +
+                          ", coluna " + (yycolumn+1) + ": '" + yytext() + "'");
+    }
 }

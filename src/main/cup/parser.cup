@@ -2,8 +2,11 @@ package com.clysman.compiler;
 
 import java_cup.runtime.*;
 import java.io.*;
+import java.util.*;
 
 parser code {:
+    public Map<String, SymbolInfo> symbolTable = new HashMap<>();
+
     private scanner scanner;
 
     public parser(scanner scanner) {
@@ -20,27 +23,288 @@ parser code {:
         System.err.println("Erro de sintaxe não recuperável. Compilação interrompida.");
         System.exit(1);
     }
+
+    public class SymbolInfo {
+        public String name;
+        public Object type;
+
+        public SymbolInfo(String name, Object type) {
+            this.name = name;
+            this.type = type;
+        }
+    }
+
+    class ExprResult {
+        public Object type;
+        public String representation;
+
+        ExprResult(String type, String representation) {
+            this.type = type;
+            this.representation = representation;
+        }
+
+        public String toString() {
+            return this.representation;
+        }
+    }
 :}
 
 scan with {: return scanner.next_token(); :};
 
-terminal            SEMI, PLUS, MINUS, TIMES, LPAREN, RPAREN, DIVISION;
-terminal Double     NUMBER;
+terminal IF, ELSE, WHILE, FOR, RETURN;
+terminal INT_TYPE, FLOAT_TYPE, BOOL_TYPE, STRING_TYPE, VOID;
+terminal TRUE, FALSE;
+terminal FUNCTION;
+terminal BREAK, CONTINUE;
 
-non terminal            expr_list;
-non terminal Double     expr;
+terminal PLUS, MINUS, TIMES, DIVIDE, MOD;
+terminal EQ, NE, LT, LE, GT, GE;
+terminal AND, OR, NOT;
+terminal ASSIGN, PLUS_ASSIGN, MINUS_ASSIGN, TIMES_ASSIGN, DIVIDE_ASSIGN;
 
+terminal SEMICOLON, COMMA;
+terminal LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET;
+
+terminal String IDENTIFIER;
+terminal Integer INT_LITERAL;
+terminal Double FLOAT_LITERAL;
+terminal String STRING_LITERAL;
+
+// Não-terminais
+non terminal program;
+non terminal statement_list;
+non terminal statement;
+non terminal declaration;
+non terminal assignment;
+non terminal if_statement;
+non terminal while_statement;
+non terminal for_statement;
+non terminal return_statement;
+non terminal block;
+non terminal expression;
+non terminal logical_or_expr;
+non terminal logical_and_expr;
+non terminal equality_expr;
+non terminal relational_expr;
+non terminal additive_expr;
+non terminal multiplicative_expr;
+non terminal unary_expr;
+non terminal primary_expr;
+non terminal type;
+
+// Precedência dos operadores
+precedence left OR;
+precedence left AND;
+precedence left EQ, NE;
+precedence left LT, LE, GT, GE;
 precedence left PLUS, MINUS;
-precedence left TIMES, DIVISION;
+precedence left TIMES, DIVIDE, MOD;
+precedence right NOT;
 
-expr_list ::= expr_list expr:e SEMI         {: System.out.println(e);:}
-            | expr:e SEMI                   {: System.out.println(e);:}
+statement_list ::= statement_list:sl statement:s
+    | statement:s
 ;
-expr      ::= expr:e1 PLUS  expr:e2         {: RESULT = e1+e2;       :}
-             | expr:e1 MINUS expr:e2        {: RESULT = e1-e2;       :}
-             | expr:e1 TIMES expr:e2        {: RESULT = e1*e2;       :}
-             | expr:e1 DIVISION expr:e2     {: RESULT = e1/e2;       :}
-             | MINUS expr:e                 {: RESULT = -e;          :}
-             | LPAREN expr:e RPAREN	        {: RESULT = e;           :}
-             | NUMBER:n	                    {: RESULT = n;           :}
-             ;
+
+statement ::= declaration:d
+    | assignment:a
+    | if_statement:i
+    | while_statement:w
+    | for_statement:f
+    | return_statement:r
+    | block:b
+    | expression:e SEMICOLON
+    | BREAK SEMICOLON
+    | CONTINUE SEMICOLON
+;
+
+declaration ::= type:t IDENTIFIER:id SEMICOLON
+        {:
+            if (symbolTable.containsKey(id)) {
+                System.err.println("Erro semântico: variável '" + id + "' já foi declarada.");
+            } else {
+                symbolTable.put(id, new SymbolInfo(id, t));
+            }
+        :}
+    | type:t IDENTIFIER:id ASSIGN expression:e SEMICOLON
+        {:
+            if (symbolTable.containsKey(id)) {
+                System.err.println("Erro semântico: variável '" + id + "' já foi declarada.");
+            } else {
+                ExprResult expr = (ExprResult) e;
+
+
+                if (!expr.type.equals(t)) {
+                    System.err.println("Erro de tipo: esperado '" + t + "', encontrado '" + expr.type + "'");
+                }
+
+                symbolTable.put(id, new SymbolInfo(id, t));
+            }
+        :}
+;
+
+assignment ::= IDENTIFIER:id ASSIGN expression:e SEMICOLON
+        {:
+            SymbolInfo info = symbolTable.get(id);
+            ExprResult expr = (ExprResult) e;
+
+            if (info == null) {
+                System.err.println("Erro semântico: variável '" + id + "' não declarada.");
+            } else if (!info.type.equals(expr.type)) {
+                System.err.println("Erro de tipo: esperado '" + info.type + "', encontrado '" + expr.type + "'");
+            }
+        :}
+    | IDENTIFIER:id PLUS_ASSIGN expression:e SEMICOLON
+        {:
+            ExprResult expr = (ExprResult) e;
+            if (expr.type != "number") {
+                System.err.println("Erro de tipo: esperado 'number', encontrado '" + expr.type + "'");
+            }
+        :}
+    | IDENTIFIER:id MINUS_ASSIGN expression:e SEMICOLON
+        {:
+            ExprResult expr = (ExprResult) e;
+            if (expr.type != "number") {
+                System.err.println("Erro de tipo: esperado 'number', encontrado '" + expr.type + "'");
+            }
+        :}
+    | IDENTIFIER:id TIMES_ASSIGN expression:e SEMICOLON
+        {:
+            ExprResult expr = (ExprResult) e;
+            if (expr.type != "number") {
+                System.err.println("Erro de tipo: esperado 'number', encontrado '" + expr.type + "'");
+            }
+        :}
+    | IDENTIFIER:id DIVIDE_ASSIGN expression:e SEMICOLON
+        {:
+            ExprResult expr = (ExprResult) e;
+            if (expr.type != "number") {
+                System.err.println("Erro de tipo: esperado 'number', encontrado '" + expr.type + "'");
+            }
+        :}
+;
+
+if_statement ::= IF LPAREN expression:e RPAREN LBRACE statement:s RBRACE
+        {:
+            ExprResult expr = (ExprResult) e;
+            if (expr.type != "bool") {
+                System.err.println("Erro de tipo: esperado 'bool', encontrado '" + expr.type + "'");
+            }
+        :}
+;
+
+while_statement ::= WHILE LPAREN expression:e RPAREN statement:s
+        {:
+            ExprResult expr = (ExprResult) e;
+            if (expr.type != "bool") {
+                System.err.println("Erro de tipo: esperado 'bool', encontrado '" + expr.type + "'");
+            }
+        :}
+;
+
+for_statement ::= FOR LPAREN assignment:e expression:cond SEMICOLON assignment:update RPAREN statement:s
+        {:
+            ExprResult expr = (ExprResult) cond;
+            if (expr.type != "bool") {
+                System.err.println("Erro de tipo: esperado 'bool', encontrado '" + expr.type + "'");
+            }
+        :}
+;
+
+return_statement ::= RETURN SEMICOLON
+    | RETURN expression:e SEMICOLON
+;
+
+block ::= LBRACE statement_list:sl RBRACE
+;
+
+expression ::= logical_or_expr:e
+    {: RESULT = e; :}
+;
+
+logical_or_expr ::= logical_or_expr:e1 OR logical_and_expr:e2
+        {:
+            ExprResult expr1 = (ExprResult) e1;
+            ExprResult expr2 = (ExprResult) e2;
+            if (expr1.type != "bool" || expr2.type != "bool") {
+                System.err.println("Erro de tipo: esperado 'bool', encontrado '" + expr1.type + "'");
+            }
+
+            RESULT = new ExprResult("bool", e1 + " || " + e2);
+        :}
+    | logical_and_expr:e
+        {: RESULT = e; :}
+;
+
+logical_and_expr ::= logical_and_expr:e1 AND equality_expr:e2
+        {: RESULT = new ExprResult("bool", e1 + " && " + e2); :}
+    | equality_expr:e
+        {: RESULT = e; :}
+;
+
+equality_expr ::= equality_expr:e1 EQ relational_expr:e2
+        {: RESULT = new ExprResult("bool", e1 + " == " + e2); :}
+    | equality_expr:e1 NE relational_expr:e2
+        {: RESULT = new ExprResult("bool", e1 + " != " + e2); :}
+    | relational_expr:e
+        {: RESULT = e; :}
+;
+
+relational_expr ::= relational_expr:e1 LT additive_expr:e2
+        {: RESULT = new ExprResult("bool", e1 + " < " + e2); :}
+    | relational_expr:e1 LE additive_expr:e2
+        {: RESULT = new ExprResult("bool", e1 + " <= " + e2); :}
+    | relational_expr:e1 GT additive_expr:e2
+        {: RESULT = new ExprResult("bool", e1 + " > " + e2); :}
+    | relational_expr:e1 GE additive_expr:e2
+        {: RESULT = new ExprResult("bool", e1 + " >= " + e2); :}
+    | additive_expr:e
+        {: RESULT = e; :}
+;
+
+additive_expr ::= additive_expr:e1 PLUS multiplicative_expr:e2
+        {: RESULT = new ExprResult("number", e1 + " + " + e2); :}
+    | additive_expr:e1 MINUS multiplicative_expr:e2
+        {: RESULT = e1 + " - " + e2; :}
+    | multiplicative_expr:e
+        {: RESULT = e; :}
+;
+
+multiplicative_expr ::= multiplicative_expr:e1 TIMES unary_expr:e2
+        {: RESULT = new ExprResult("number", e1 + " * " + e2); :}
+    | multiplicative_expr:e1 DIVIDE unary_expr:e2
+        {: RESULT = new ExprResult("number", e1 + " / " + e2); :}
+    | multiplicative_expr:e1 MOD unary_expr:e2
+        {: RESULT = new ExprResult("number", e1 + " % " + e2); :}
+    | unary_expr:e
+        {: RESULT = e; :}
+;
+
+unary_expr ::= NOT unary_expr:e     {: RESULT = new ExprResult("bool", "!" + e); :}
+    | MINUS unary_expr:e            {: RESULT = new ExprResult("number", "-" + e); :}
+    | primary_expr:e                {: RESULT = e; :}
+;
+
+primary_expr ::= STRING_LITERAL:s   {: RESULT = new ExprResult("string", "\"" + s + "\""); :}
+    | INT_LITERAL:i                 {: RESULT = new ExprResult("number", i.toString()); :}
+    | FLOAT_LITERAL:f               {: RESULT = new ExprResult("number", f.toString()); :}
+    | TRUE                          {: RESULT = new ExprResult("boolean", "true"); :}
+    | FALSE                         {: RESULT = new ExprResult("boolean", "false"); :}
+    | IDENTIFIER:id
+        {:
+            SymbolInfo info = symbolTable.get(id);
+
+            if (info == null) {
+                System.err.println("Erro semântico: variável '" + id + "' não declarada.");
+            }
+
+            RESULT = new ExprResult((String) info.type, id);
+        :}
+    | LPAREN expression:e RPAREN    {: RESULT = new ExprResult((String) ((ExprResult) e).type, "(" + e + ")"); :}
+;
+
+type ::= INT_TYPE     {: RESULT = "number"; :}
+       | FLOAT_TYPE   {: RESULT = "number"; :}
+       | BOOL_TYPE    {: RESULT = "bool"; :}
+       | STRING_TYPE  {: RESULT = "string"; :}
+       | VOID         {: RESULT = "void"; :}
+;
