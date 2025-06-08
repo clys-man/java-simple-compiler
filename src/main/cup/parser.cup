@@ -5,7 +5,43 @@ import java.io.*;
 import java.util.*;
 
 parser code {:
-    public Map<String, SymbolInfo> symbolTable = new HashMap<>();
+    private Stack<Map<String, SymbolInfo>> scopeStack = new Stack<>();
+
+    public Map<String, SymbolInfo> currentScope() {
+        if (scopeStack.isEmpty()) {
+            Map<String, SymbolInfo> symbolTable = new HashMap<>();
+            scopeStack.push(symbolTable);
+        }
+        return scopeStack.peek();
+    }
+
+    public void enterScope() {
+        scopeStack.push(new HashMap<String, SymbolInfo>());
+    }
+
+    public void exitScope() {
+        if (!scopeStack.isEmpty()) {
+            scopeStack.pop();
+        }
+    }
+
+    public void declareVariable(String name, Object type) {
+        Map<String, SymbolInfo> symbolTable = currentScope();
+        if (symbolTable.containsKey(name)) {
+            fatal_error(ErrorType.SEMANTICAL, "Variável '" + name + "' já foi declarada.");
+        }
+        symbolTable.put(name, new SymbolInfo(name, type));
+    }
+
+    public SymbolInfo lookupVariable(String name) {
+        for (int i = scopeStack.size() - 1; i >= 0; i--) {
+            Map<String, SymbolInfo> symbolTable = scopeStack.get(i);
+            if (symbolTable.containsKey(name)) {
+                return symbolTable.get(name);
+            }
+        }
+        return null;
+    }
 
     private scanner scanner;
 
@@ -94,12 +130,13 @@ terminal Integer INT_LITERAL;
 terminal Double FLOAT_LITERAL;
 terminal String STRING_LITERAL;
 
-// Não-terminais
 non terminal program;
 non terminal statement_list;
 non terminal statement;
 non terminal declaration;
 non terminal assignment;
+non terminal function_statement;
+non terminal parameter;
 non terminal if_statement;
 non terminal while_statement;
 non terminal for_statement;
@@ -116,7 +153,6 @@ non terminal unary_expr;
 non terminal primary_expr;
 non terminal type;
 
-// Precedência dos operadores
 precedence left OR;
 precedence left AND;
 precedence left EQ, NE;
@@ -125,12 +161,19 @@ precedence left PLUS, MINUS;
 precedence left TIMES, DIVIDE, MOD;
 precedence right NOT;
 
+start with program;
+
+program ::= statement_list:sl
+    | /* programa vazio */
+;
+
 statement_list ::= statement_list:sl statement:s
     | statement:s
 ;
 
 statement ::= declaration:d
     | assignment:a
+    | function_statement:fc
     | if_statement:i
     | while_statement:w
     | for_statement:f
@@ -139,31 +182,23 @@ statement ::= declaration:d
 
 declaration ::= type:t IDENTIFIER:id SEMICOLON
         {:
-            if (symbolTable.containsKey(id)) {
-                fatal_error(ErrorType.SEMANTICAL, "Variável '" + id + "' já foi declarada.");
-            } else {
-                symbolTable.put(id, new SymbolInfo(id, t));
-            }
+            declareVariable(id, t);
         :}
     | type:t IDENTIFIER:id ASSIGN expression:e SEMICOLON
         {:
-            if (symbolTable.containsKey(id)) {
-                fatal_error(ErrorType.SEMANTICAL, "Variável '" + id + "' já foi declarada.");
-            } else {
-                ExprResult expr = (ExprResult) e;
+            ExprResult expr = (ExprResult) e;
 
-                if (!expr.type.equals(t)) {
-                    fatal_error(ErrorType.TYPE, "Esperado tipo '" + t + "', mas encontrado '" + expr.type + "'.");
-                }
-
-                symbolTable.put(id, new SymbolInfo(id, t));
+            if (!expr.type.equals(t)) {
+                fatal_error(ErrorType.TYPE, "Esperado tipo '" + t + "', mas encontrado '" + expr.type + "'.");
             }
+
+            declareVariable(id, t);
         :}
 ;
 
 assignment ::= IDENTIFIER:id ASSIGN expression:e SEMICOLON
         {:
-            SymbolInfo info = symbolTable.get(id);
+            SymbolInfo info = lookupVariable(id);
             ExprResult expr = (ExprResult) e;
 
             if (info == null) {
@@ -174,7 +209,7 @@ assignment ::= IDENTIFIER:id ASSIGN expression:e SEMICOLON
         :}
     | IDENTIFIER:id PLUS_ASSIGN expression:e SEMICOLON
         {:
-            SymbolInfo info = symbolTable.get(id);
+            SymbolInfo info = lookupVariable(id);
             ExprResult expr = (ExprResult) e;
 
             if (info == null) {
@@ -185,7 +220,7 @@ assignment ::= IDENTIFIER:id ASSIGN expression:e SEMICOLON
         :}
     | IDENTIFIER:id MINUS_ASSIGN expression:e SEMICOLON
         {:
-            SymbolInfo info = symbolTable.get(id);
+            SymbolInfo info = lookupVariable(id);
             ExprResult expr = (ExprResult) e;
 
             if (info == null) {
@@ -196,7 +231,7 @@ assignment ::= IDENTIFIER:id ASSIGN expression:e SEMICOLON
         :}
     | IDENTIFIER:id TIMES_ASSIGN expression:e SEMICOLON
         {:
-            SymbolInfo info = symbolTable.get(id);
+            SymbolInfo info = lookupVariable(id);
             ExprResult expr = (ExprResult) e;
 
             if (info == null) {
@@ -207,7 +242,7 @@ assignment ::= IDENTIFIER:id ASSIGN expression:e SEMICOLON
         :}
     | IDENTIFIER:id DIVIDE_ASSIGN expression:e SEMICOLON
         {:
-            SymbolInfo info = symbolTable.get(id);
+            SymbolInfo info = lookupVariable(id);
             ExprResult expr = (ExprResult) e;
 
             if (info == null) {
@@ -259,11 +294,37 @@ for_statement ::= FOR LPAREN assignment:e expression:cond SEMICOLON assignment:u
         :}
 ;
 
+function_statement ::= FUNCTION IDENTIFIER:id LPAREN RPAREN block
+    | FUNCTION IDENTIFIER:id LPAREN parameter:p RPAREN block
+    | FUNCTION type:t IDENTIFIER:id LPAREN RPAREN block
+    | FUNCTION type:t IDENTIFIER:id LPAREN parameter:p RPAREN block
+;
+
+parameter ::= type:t IDENTIFIER:id
+    | type:t IDENTIFIER:id COMMA parameter
+;
+
 return_statement ::= RETURN SEMICOLON
     | RETURN expression:e SEMICOLON
 ;
 
-block ::= LBRACE statement_list:sl RBRACE
+block ::= LBRACE
+        {:
+            enterScope();
+        :}
+        statement_list:sl
+        RBRACE
+        {:
+            exitScope();
+        :}
+    | LBRACE
+        {:
+            enterScope();
+        :}
+        RBRACE
+        {:
+            exitScope();
+        :}
 ;
 
 expression ::= logical_or_expr:e
@@ -283,7 +344,6 @@ logical_or_expr ::= logical_or_expr:e1 OR logical_and_expr:e2
     | logical_and_expr:e
         {: RESULT = e; :}
 ;
-
 
 logical_and_expr ::= logical_and_expr:e1 AND equality_expr:e2
     {:
@@ -439,7 +499,7 @@ primary_expr ::= STRING_LITERAL:s   {: RESULT = new ExprResult("string", "\"" + 
     | FALSE                         {: RESULT = new ExprResult("bool", "false"); :}
     | IDENTIFIER:id
         {:
-            SymbolInfo info = symbolTable.get(id);
+            SymbolInfo info = lookupVariable(id);
 
             if (info == null) {
                 fatal_error(ErrorType.SEMANTICAL, "Variável '" + id + "' não declarada.");
