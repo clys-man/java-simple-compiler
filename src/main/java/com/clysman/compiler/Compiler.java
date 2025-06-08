@@ -16,13 +16,8 @@ public class Compiler {
             scanner scanner = new scanner(reader);
             parser parser = new parser(scanner);
 
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.trim().isEmpty()) continue;
+            parser.parse();
 
-                scanner.yyreset(new StringReader(line));
-                parser.parse();
-            }
         } catch (Exception e) {
             e.printStackTrace();
         }
