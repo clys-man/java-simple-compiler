@@ -1,4 +1,4 @@
-# Compilador de Linguagem de Programação em Português
+# Compilador PTBR
 
 Um compilador simples para uma linguagem de programação com sintaxe em português brasileiro, desenvolvido com JFlex (lexer) e CUP (parser).
 
