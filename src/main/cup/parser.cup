@@ -5,23 +5,38 @@ import java.io.*;
 import java.util.*;
 
 parser code {:
-    private Stack<Map<String, SymbolInfo>> scopeStack = new Stack<>();
+    private Stack<Map<String, SymbolInfo>> variableScopeStack = new Stack<>();
+    private Stack<Map<String, FunctionInfo>> functionScopeStack = new Stack<>();
+    private String currentFunction = null;
+    private String currentFunctionReturnType = null;
 
     public Map<String, SymbolInfo> currentScope() {
-        if (scopeStack.isEmpty()) {
+        if (variableScopeStack.isEmpty()) {
             Map<String, SymbolInfo> symbolTable = new HashMap<>();
-            scopeStack.push(symbolTable);
+            variableScopeStack.push(symbolTable);
         }
-        return scopeStack.peek();
+        return variableScopeStack.peek();
+    }
+
+    public Map<String, FunctionInfo> currentFunctionScope() {
+        if (functionScopeStack.isEmpty()) {
+            Map<String, FunctionInfo> functionTable = new HashMap<>();
+            functionScopeStack.push(functionTable);
+        }
+        return functionScopeStack.peek();
     }
 
     public void enterScope() {
-        scopeStack.push(new HashMap<String, SymbolInfo>());
+        variableScopeStack.push(new HashMap<String, SymbolInfo>());
+        functionScopeStack.push(new HashMap<String, FunctionInfo>());
     }
 
     public void exitScope() {
-        if (!scopeStack.isEmpty()) {
-            scopeStack.pop();
+        if (!variableScopeStack.isEmpty()) {
+            variableScopeStack.pop();
+        }
+        if (!functionScopeStack.isEmpty()) {
+            functionScopeStack.pop();
         }
     }
 
@@ -34,10 +49,29 @@ parser code {:
     }
 
     public SymbolInfo lookupVariable(String name) {
-        for (int i = scopeStack.size() - 1; i >= 0; i--) {
-            Map<String, SymbolInfo> symbolTable = scopeStack.get(i);
+        for (int i = variableScopeStack.size() - 1; i >= 0; i--) {
+            Map<String, SymbolInfo> symbolTable = variableScopeStack.get(i);
             if (symbolTable.containsKey(name)) {
                 return symbolTable.get(name);
+            }
+        }
+        return null;
+    }
+
+    public void declareFunction(String name, String returnType, List<String> paramTypes) {
+        Map<String, FunctionInfo> functionTable = currentFunctionScope();
+        if (functionTable.containsKey(name)) {
+            fatal_error(ErrorType.SEMANTICAL, "Função '" + name + "' já foi declarada neste escopo.");
+        }
+        functionTable.put(name, new FunctionInfo(name, returnType, paramTypes));
+    }
+
+    public FunctionInfo lookupFunction(String name) {
+        // Busca função em todos os escopos, do mais interno para o mais externo
+        for (int i = functionScopeStack.size() - 1; i >= 0; i--) {
+            Map<String, FunctionInfo> functionTable = functionScopeStack.get(i);
+            if (functionTable.containsKey(name)) {
+                return functionTable.get(name);
             }
         }
         return null;
@@ -94,6 +128,18 @@ parser code {:
         }
     }
 
+    public class FunctionInfo {
+        public String name;
+        public String returnType;
+        public List<String> parameterTypes;
+
+        public FunctionInfo(String name, String returnType, List<String> parameterTypes) {
+            this.name = name;
+            this.returnType = returnType;
+            this.parameterTypes = parameterTypes != null ? parameterTypes : new ArrayList<>();
+        }
+    }
+
     class ExprResult {
         public Object type;
         public String representation;
@@ -105,6 +151,21 @@ parser code {:
 
         public String toString() {
             return this.representation;
+        }
+    }
+
+    class ParameterList {
+        public List<String> types;
+        public List<String> names;
+
+        public ParameterList() {
+            this.types = new ArrayList<>();
+            this.names = new ArrayList<>();
+        }
+
+        public void addParameter(String type, String name) {
+            this.types.add(type);
+            this.names.add(name);
         }
     }
 :}
@@ -136,12 +197,14 @@ non terminal statement;
 non terminal declaration;
 non terminal assignment;
 non terminal function_statement;
+non terminal parameter_list;
 non terminal parameter;
 non terminal if_statement;
 non terminal while_statement;
 non terminal for_statement;
 non terminal return_statement;
 non terminal block;
+non terminal unscoped_block;
 non terminal expression;
 non terminal logical_or_expr;
 non terminal logical_and_expr;
@@ -151,6 +214,8 @@ non terminal additive_expr;
 non terminal multiplicative_expr;
 non terminal unary_expr;
 non terminal primary_expr;
+non terminal function_call;
+non terminal argument_list;
 non terminal type;
 
 precedence left OR;
@@ -178,6 +243,7 @@ statement ::= declaration:d
     | while_statement:w
     | for_statement:f
     | return_statement:r
+    | function_call:fc SEMICOLON
 ;
 
 declaration ::= type:t IDENTIFIER:id SEMICOLON
@@ -276,7 +342,8 @@ if_statement ::= IF LPAREN expression:e RPAREN block:b
         :}
 ;
 
-while_statement ::= WHILE LPAREN expression:e RPAREN statement:s
+while_statement ::=
+    WHILE LPAREN expression:e RPAREN block:b
         {:
             ExprResult expr = (ExprResult) e;
             if (!expr.type.equals("bool")) {
@@ -285,27 +352,182 @@ while_statement ::= WHILE LPAREN expression:e RPAREN statement:s
         :}
 ;
 
-for_statement ::= FOR LPAREN assignment:e expression:cond SEMICOLON assignment:update RPAREN statement:s
+for_statement ::=
         {:
-            ExprResult expr = (ExprResult) cond;
+            enterScope();
+
+        :}
+    FOR LPAREN declaration:d expression:e SEMICOLON assignment:as RPAREN unscoped_block:b
+        {:
+            ExprResult expr = (ExprResult) e;
             if (!expr.type.equals("bool")) {
                 fatal_error(ErrorType.TYPE, "Esperado 'bool', encontrado '" + expr.type + "'");
             }
+
+            exitScope();
         :}
 ;
 
-function_statement ::= FUNCTION IDENTIFIER:id LPAREN RPAREN block
-    | FUNCTION IDENTIFIER:id LPAREN parameter:p RPAREN block
-    | FUNCTION type:t IDENTIFIER:id LPAREN RPAREN block
-    | FUNCTION type:t IDENTIFIER:id LPAREN parameter:p RPAREN block
+function_statement ::= FUNCTION IDENTIFIER:id LPAREN RPAREN
+        {:
+            currentFunction = id;
+            currentFunctionReturnType = "void";
+            declareFunction(id, "void", new ArrayList<String>());
+            enterScope();
+        :}
+        block
+        {:
+            exitScope();
+            currentFunction = null;
+            currentFunctionReturnType = null;
+        :}
+    | FUNCTION IDENTIFIER:id LPAREN parameter_list:p RPAREN
+        {:
+            ParameterList params = (ParameterList) p;
+            currentFunction = id;
+            currentFunctionReturnType = "void";
+            declareFunction(id, "void", params.types);
+            enterScope();
+            for (int i = 0; i < params.names.size(); i++) {
+                declareVariable(params.names.get(i), params.types.get(i));
+            }
+        :}
+        block
+        {:
+            exitScope();
+            currentFunction = null;
+            currentFunctionReturnType = null;
+        :}
+    | FUNCTION type:t IDENTIFIER:id LPAREN RPAREN
+        {:
+            currentFunction = id;
+            currentFunctionReturnType = (String) t;
+            declareFunction(id, (String) t, new ArrayList<String>());
+            enterScope();
+        :}
+        block
+        {:
+            exitScope();
+            currentFunction = null;
+            currentFunctionReturnType = null;
+        :}
+    | FUNCTION type:t IDENTIFIER:id LPAREN parameter_list:p RPAREN
+        {:
+            ParameterList params = (ParameterList) p;
+            currentFunction = id;
+            currentFunctionReturnType = (String) t;
+            declareFunction(id, (String) t, params.types);
+            enterScope();
+            for (int i = 0; i < params.names.size(); i++) {
+                declareVariable(params.names.get(i), params.types.get(i));
+            }
+        :}
+        block
+        {:
+            exitScope();
+            currentFunction = null;
+            currentFunctionReturnType = null;
+        :}
+;
+
+parameter_list ::= parameter:p
+        {:
+            RESULT = p;
+        :}
+    | parameter_list:pl COMMA parameter:p
+        {:
+            ParameterList paramList = (ParameterList) pl;
+            ParameterList singleParam = (ParameterList) p;
+            paramList.types.addAll(singleParam.types);
+            paramList.names.addAll(singleParam.names);
+            RESULT = paramList;
+        :}
 ;
 
 parameter ::= type:t IDENTIFIER:id
-    | type:t IDENTIFIER:id COMMA parameter
+        {:
+            ParameterList paramList = new ParameterList();
+            paramList.addParameter((String) t, id);
+            RESULT = paramList;
+        :}
+;
+
+function_call ::= IDENTIFIER:id LPAREN RPAREN
+        {:
+            FunctionInfo func = lookupFunction(id);
+            if (func == null) {
+                fatal_error(ErrorType.SEMANTICAL, "Função '" + id + "' não declarada.");
+            }
+            if (!func.parameterTypes.isEmpty()) {
+                fatal_error(ErrorType.TYPE, "Função '" + id + "' espera " + func.parameterTypes.size() + " argumentos, mas recebeu 0.");
+            }
+            RESULT = new ExprResult(func.returnType, id + "()");
+        :}
+    | IDENTIFIER:id LPAREN argument_list:args RPAREN
+        {:
+            FunctionInfo func = lookupFunction(id);
+            if (func == null) {
+                fatal_error(ErrorType.SEMANTICAL, "Função '" + id + "' não declarada.");
+            }
+
+            @SuppressWarnings("unchecked")
+            List<ExprResult> arguments = (List<ExprResult>) args;
+
+            if (arguments.size() != func.parameterTypes.size()) {
+                fatal_error(ErrorType.TYPE, "Função '" + id + "' espera " + func.parameterTypes.size() + " argumentos, mas recebeu " + arguments.size() + ".");
+            }
+
+            for (int i = 0; i < arguments.size(); i++) {
+                if (!arguments.get(i).type.equals(func.parameterTypes.get(i))) {
+                    fatal_error(ErrorType.TYPE, "Argumento " + (i + 1) + " da função '" + id + "': esperado '" + func.parameterTypes.get(i) + "', encontrado '" + arguments.get(i).type + "'.");
+                }
+            }
+
+            StringBuilder callStr = new StringBuilder(id + "(");
+            for (int i = 0; i < arguments.size(); i++) {
+                if (i > 0) callStr.append(", ");
+                callStr.append(arguments.get(i).representation);
+            }
+            callStr.append(")");
+
+            RESULT = new ExprResult(func.returnType, callStr.toString());
+        :}
+;
+
+argument_list ::= expression:e
+        {:
+            List<ExprResult> args = new ArrayList<>();
+            args.add((ExprResult) e);
+            RESULT = args;
+        :}
+    | argument_list:al COMMA expression:e
+        {:
+            @SuppressWarnings("unchecked")
+            List<ExprResult> args = (List<ExprResult>) al;
+            args.add((ExprResult) e);
+            RESULT = args;
+        :}
 ;
 
 return_statement ::= RETURN SEMICOLON
+        {:
+            if (currentFunction == null) {
+                fatal_error(ErrorType.SEMANTICAL, "Comando 'return' fora de função.");
+            }
+            if (!currentFunctionReturnType.equals("void")) {
+                fatal_error(ErrorType.TYPE, "Função '" + currentFunction + "' deve retornar um valor do tipo '" + currentFunctionReturnType + "'.");
+            }
+        :}
     | RETURN expression:e SEMICOLON
+        {:
+            if (currentFunction == null) {
+                fatal_error(ErrorType.SEMANTICAL, "Comando 'return' fora de função.");
+            }
+            ExprResult expr = (ExprResult) e;
+            if (!expr.type.equals(currentFunctionReturnType)) {
+                fatal_error(ErrorType.TYPE, "Função '" + currentFunction + "' deve retornar '" + currentFunctionReturnType + "', mas encontrado '" + expr.type + "'.");
+            }
+        :}
 ;
 
 block ::= LBRACE
@@ -325,6 +547,10 @@ block ::= LBRACE
         {:
             exitScope();
         :}
+;
+
+unscoped_block ::= LBRACE statement_list:sl RBRACE
+    | LBRACE RBRACE
 ;
 
 expression ::= logical_or_expr:e
@@ -507,6 +733,7 @@ primary_expr ::= STRING_LITERAL:s   {: RESULT = new ExprResult("string", "\"" + 
 
             RESULT = new ExprResult((String) info.type, id);
         :}
+    | function_call:fc              {: RESULT = fc; :}
     | LPAREN expression:e RPAREN    {: RESULT = new ExprResult((String) ((ExprResult) e).type, "(" + e + ")"); :}
 ;
 
