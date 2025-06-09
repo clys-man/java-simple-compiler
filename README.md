@@ -36,9 +36,9 @@ y = y * 2.0;
 
 ```
 se (x > 5) {
-    escreva("X é maior que 5");
+    // faz algo
 } senao {
-    escreva("X é menor ou igual a 5");
+    // faz algo
 }
 ```
 
@@ -182,5 +182,6 @@ mvn generate-sources
 # Empacotar em JAR
 mvn package
 ```
+## Demonstração
 
-O compilador realizará análise léxica, sintática e semântica automaticamente, reportando erros detalhados quando encontrados.
+https://youtu.be/RCnkj20jjKE
