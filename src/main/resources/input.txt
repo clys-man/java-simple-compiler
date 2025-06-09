@@ -1,0 +1,20 @@
+// Função sem parâmetros e sem retorno
+funcao fazAlgo() {
+    // faz algo
+}
+
+// Função com parâmetros e retorno
+funcao inteiro somar(inteiro a, inteiro b) {
+    retorne a + b;
+}
+
+// Chamada de funções
+inteiro resultado = somar(10, 20);
+
+se (resultado > 5) {
+    fazAlgo();
+} senao se (resultado > 10) {
+    fazAlgo();
+} senao {
+    fazAlgo();
+}
